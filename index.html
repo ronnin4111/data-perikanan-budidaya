@@ -209,7 +209,20 @@
         <div class="list" role="list"></div>
       </div>
     </div>
-
+<div class="filter" id="fIkan">
+  <div class="label" data-key="jenisIkan">
+    <div>
+      <div class="title">Jenis Ikan</div>
+      <div class="sub" id="subIkan">Semua</div>
+    </div>
+    <div>▾</div>
+  </div>
+  <div class="panel" data-key="jenisIkan">
+    <div class="search"><input type="search" placeholder="Cari jenis ikan..." data-filter-search></div>
+    <div class="list" role="list"></div>
+  </div>
+</div>
+      
     <div class="controls-actions">
       <button id="btnReset" class="btn danger">🧹 Hapus Semua Filter</button>
       <button id="btnExport" class="btn ghost">⬇ Export Excel</button>
@@ -225,11 +238,13 @@
       <div class="chart-controls">
   <label for="chartFilter">Tampilkan berdasarkan:</label>
   <select id="chartFilter">
-    <option value="wadahBudidaya">Wadah Budidaya</option>
-    <option value="jenisUsaha">Jenis Usaha</option>
-    <option value="kecamatan">Kecamatan</option>
-    <option value="desa">Desa</option>
-  </select>
+  <option value="wadahBudidaya">Wadah Budidaya</option>
+  <option value="jenisUsaha">Jenis Usaha</option>
+  <option value="kecamatan">Kecamatan</option>
+  <option value="desa">Desa</option>
+  <option value="jenisIkan">Jenis Ikan</option>
+</select>
+          
   <label for="chartType" class="ml-10">Tipe chart:</label>
   <label for="chartType" class="ml-10">Tipe chart:</label>
   <select id="chartType">
@@ -295,24 +310,30 @@
 const SHEET_JSON = "https://docs.google.com/spreadsheets/d/1WvFGRiuiJiGGdhLp1EqtKPhqHi7yNn8UipH_VRK-zFo/gviz/tq?tqx=out:json";
 
 let GLOBAL = { cols: [], rows: [] };
-let selections = { kecamatan:[], desa:[], jenisUsaha:[], wadahBudidaya:[] };
-let COL = {}; // detected indices
-let pieChart = null;
-let map, markersLayer, defaultLayer, greenLayer;
+let selections = { 
+  kecamatan: [], 
+  desa: [], 
+  jenisUsaha: [], 
+  wadahBudidaya: [],
+  jenisIkan: [] // Tambahkan ini
+};
 
-/* DOM refs */
 const filters = {
   kecamatan: document.getElementById('fKec'),
   desa: document.getElementById('fDesa'),
   jenisUsaha: document.getElementById('fUsaha'),
-  wadahBudidaya: document.getElementById('fWadah')
+  wadahBudidaya: document.getElementById('fWadah'),
+  jenisIkan: document.getElementById('fIkan') // Tambahkan ini
 };
+
 const subTexts = {
   kecamatan: document.getElementById('subKec'),
   desa: document.getElementById('subDesa'),
   jenisUsaha: document.getElementById('subUsaha'),
-  wadahBudidaya: document.getElementById('subWadah')
+  wadahBudidaya: document.getElementById('subWadah'),
+  jenisIkan: document.getElementById('subIkan') // Tambahkan ini
 };
+    
 const btnReset = document.getElementById('btnReset');
 const btnExport = document.getElementById('btnExport');
 
@@ -364,6 +385,7 @@ function detectColumns(){
     }
     return -1;
   }
+  // Kolom yang sudah ada
   COL.kecamatan = findIndexByKeywords(['kecamatan','kec']);
   COL.desa = findIndexByKeywords(['desa','kelurahan']);
   COL.jenisUsaha = findIndexByKeywords(['jenis usaha','jenis_usaha','jenisusaha']);
@@ -373,11 +395,17 @@ function detectColumns(){
   COL.nib = findIndexByKeywords(['nib']);
   COL.cpib = findIndexByKeywords(['cpib']);
   COL.cbib = findIndexByKeywords(['cbib']);
-  COL.kusukaKelompok = findIndexByKeywords(['kusuka kelompok','kusuka_kelompok','kusukakelompok']) ;
+  COL.kusukaKelompok = findIndexByKeywords(['kusuka kelompok','kusuka_kelompok','kusukakelompok']);
   COL.latitude = findIndexByKeywords(['latitude','lat']);
   COL.longitude = findIndexByKeywords(['longitude','lon','lng','long']);
   COL.jumlahKolam = findIndexByKeywords(['jumlah kolam', 'jml kolam', 'kolam']);
   COL.luasLahan = findIndexByKeywords(['luas lahan', 'luas (ha)', 'luas']);
+  
+  // Tambahan kolom baru
+  COL.ikanUtama = findIndexByKeywords(['jenis ikan utama', 'ikan utama']);
+  COL.ikanTambahan1 = findIndexByKeywords(['jenis ikan tambahan 1', 'ikan tambahan 1']);
+  COL.ikanTambahan2 = findIndexByKeywords(['jenis ikan tambahan 2', 'ikan tambahan 2']);
+  
   console.log('Detected columns', COL);
 }
 
@@ -465,13 +493,30 @@ document.addEventListener('click', (ev) => {
 }
 
 function getUniqueSets(rows){
-  const s = { kecamatan:new Set(), desa:new Set(), jenisUsaha:new Set(), wadahBudidaya:new Set() };
+  const s = { 
+    kecamatan: new Set(), 
+    desa: new Set(), 
+    jenisUsaha: new Set(), 
+    wadahBudidaya: new Set(),
+    jenisIkan: new Set() 
+  };
+  
   rows.forEach(r => {
     s.kecamatan.add(r.c[COL.kecamatan]?.v || '');
     s.desa.add(r.c[COL.desa]?.v || '');
     s.jenisUsaha.add(r.c[COL.jenisUsaha]?.v || '');
     s.wadahBudidaya.add(r.c[COL.wadahBudidaya]?.v || '');
+    
+    // Tambahkan jenis ikan dari ketiga kolom
+    const ikanUtama = r.c[COL.ikanUtama]?.v || '';
+    const ikanTambahan1 = r.c[COL.ikanTambahan1]?.v || '';
+    const ikanTambahan2 = r.c[COL.ikanTambahan2]?.v || '';
+    
+    if(ikanUtama) s.jenisIkan.add(ikanUtama);
+    if(ikanTambahan1) s.jenisIkan.add(ikanTambahan1);
+    if(ikanTambahan2) s.jenisIkan.add(ikanTambahan2);
   });
+  
   return s;
 }
 
@@ -567,7 +612,21 @@ function applyUpdate() {
   for (const key of Object.keys(selections)) {
     const sel = selections[key] || [];
     if (sel.length) {
-      filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+      if (key === 'jenisIkan') {
+        // Filter khusus untuk jenis ikan (cek di 3 kolom)
+        filtered = filtered.filter(r => {
+          const ikanUtama = r.c[COL.ikanUtama]?.v || '';
+          const ikanTambahan1 = r.c[COL.ikanTambahan1]?.v || '';
+          const ikanTambahan2 = r.c[COL.ikanTambahan2]?.v || '';
+          return sel.some(selected => 
+            selected === ikanUtama || 
+            selected === ikanTambahan1 || 
+            selected === ikanTambahan2
+          );
+        });
+      } else {
+        filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+      }
     }
   }
 
@@ -576,7 +635,6 @@ function applyUpdate() {
     filtered = GLOBAL.rows.slice();
   }
 
-  // Jangan refresh panel lain agar pilihan multi tetap stabil
   renderTable(filtered);
   computeStatsAndRender(filtered);
   buildPieAndRender(filtered);
@@ -733,9 +791,23 @@ function buildPieAndRender(rows){
 
   const agg = {};
   rows.forEach(r => {
-    const key = (r.c[COL[groupBy]]?.v || 'Tidak diisi').toString();
-    agg[key] = (agg[key] || 0) + 1;
+    if (groupBy === 'jenisIkan') {
+      // Hitung untuk setiap jenis ikan dari 3 kolom
+      const ikanUtama = r.c[COL.ikanUtama]?.v || '';
+      const ikanTambahan1 = r.c[COL.ikanTambahan1]?.v || '';
+      const ikanTambahan2 = r.c[COL.ikanTambahan2]?.v || '';
+      
+      if (ikanUtama) agg[ikanUtama] = (agg[ikanUtama] || 0) + 1;
+      if (ikanTambahan1) agg[ikanTambahan1] = (agg[ikanTambahan1] || 0) + 1;
+      if (ikanTambahan2) agg[ikanTambahan2] = (agg[ikanTambahan2] || 0) + 1;
+    } else {
+      const key = (r.c[COL[groupBy]]?.v || 'Tidak diisi').toString();
+      agg[key] = (agg[key] || 0) + 1;
+    }
   });
+
+  // Sisa kode chart tetap sama...
+}
 
   const pairs = Object.keys(agg).map(k => ({k,v:agg[k]})).sort((a,b)=>b.v-a.v);
   const TOP = 8;
@@ -850,6 +922,7 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
+
 
 
 
