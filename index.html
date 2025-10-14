@@ -745,34 +745,116 @@ function buildPieAndRender(rows){
 
   if(pieChart) pieChart.destroy();
 
-  pieChart = new Chart(pieCtx, {
-    type: chartType,
-    data: { 
-      labels, 
-      datasets: [{ 
-        data: values, 
-        backgroundColor: generateColors(labels.length), 
-        borderWidth: 1 
-      }] 
-    },
-    options: { 
-      responsive: true,
-      plugins: { 
-        legend: { position: 'bottom' },
-        tooltip: { 
-          callbacks: { 
-            label(ctx){ 
-              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
-              const val = ctx.parsed;
-              const pct = total? ((val/total)*100).toFixed(1) : 0;
-              return `${ctx.label}: ${val} (${pct}%)`;
-            } 
-          } 
-        } 
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          usePointStyle: true,
+          padding: 15
+        }
       },
-      scales: chartType === 'bar' ? { y: { beginAtZero: true } } : {}
+      tooltip: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        titleColor: '#333',
+        titleFont: {
+          size: 13,
+          weight: 'bold'
+        },
+        bodyColor: '#666',
+        bodyFont: {
+          size: 12
+        },
+        borderColor: '#ddd',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 8,
+        callbacks: {
+          label(ctx){
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            const val = ctx.parsed;
+            const pct = total ? ((val/total)*100).toFixed(1) : 0;
+            return `${ctx.label}: ${val.toLocaleString('id-ID')} (${pct}%)`;
+          }
+        }
+      }
     }
-  });
+  };
+
+  // Konfigurasi khusus untuk tipe bar
+  if (chartType === 'bar') {
+    chartOptions.scales = {
+      y: {
+        beginAtZero: true,
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.05)',
+          drawBorder: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          },
+          color: '#666'
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          },
+          color: '#666',
+          maxRotation: 45,
+          minRotation: 45
+        }
+      }
+    };
+
+    // Generate gradient colors untuk bar
+    const ctx = pieCtx;
+    const gradients = labels.map((_, index) => {
+      const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+      const hue = Math.round((index * 360) / Math.max(labels.length, 1));
+      gradient.addColorStop(0, `hsla(${hue}, 85%, 50%, 0.9)`);
+      gradient.addColorStop(1, `hsla(${hue}, 85%, 65%, 0.9)`);
+      return gradient;
+    });
+
+    pieChart = new Chart(pieCtx, {
+      type: chartType,
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: chartType === 'bar' ? gradients : generateColors(labels.length),
+          borderWidth: chartType === 'bar' ? 0 : 1,
+          borderRadius: chartType === 'bar' ? 6 : 0,
+          maxBarThickness: 50,
+          minBarLength: 10,
+          borderSkipped: false
+        }]
+      },
+      options: chartOptions
+    });
+  } else {
+    // Konfigurasi untuk pie chart tetap sama seperti sebelumnya
+    pieChart = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: generateColors(labels.length),
+          borderWidth: 1
+        }]
+      },
+      options: chartOptions
+    });
+  }
 }
 
 
@@ -850,6 +932,7 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
+
 
 
 
