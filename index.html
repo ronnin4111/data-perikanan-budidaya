@@ -117,6 +117,11 @@
 
   .info-line{ color:var(--muted); font-size:13px; margin-top:8px }
 
+.ml-10 { margin-left: 10px; }
+.chart-controls {
+  text-align: center;
+  margin-bottom: 8px;
+}
 </style>
 <!-- Project external stylesheet to avoid inline styles -->
 <link rel="stylesheet" href="./style.css" />
@@ -188,7 +193,7 @@
 
     <div class="controls-actions">
       <button id="btnReset" class="btn danger">🧹 Hapus Semua Filter</button>
-      <button id="btnExport" class="btn ghost">⬇ Export CSV</button>
+      <button id="btnExport" class="btn ghost">⬇ Export Excel</button>
     </div>
   </div>
 </div>
@@ -198,9 +203,26 @@
   <div id="map"></div>
 </div>
 
-<div class="layout">
-  <div>
-    <div id="pieCard" class="card">
+      <div class="chart-controls">
+  <label for="chartFilter">Tampilkan berdasarkan:</label>
+  <select id="chartFilter">
+    <option value="wadahBudidaya">Wadah Budidaya</option>
+    <option value="jenisUsaha">Jenis Usaha</option>
+    <option value="kecamatan">Kecamatan</option>
+    <option value="desa">Desa</option>
+  </select>
+  <label for="chartType" class="ml-10">Tipe chart:</label>
+  <label for="chartType" class="ml-10">Tipe chart:</label>
+  <select id="chartType">
+    <option value="pie">Pie</option>
+    <option value="bar">Bar</option>
+  </select>
+</div>
+    <option value="pie">Pie</option>
+    <option value="bar">Bar</option>
+  </select>
+</div>
+
       <canvas id="pieCanvas"></canvas>
     </div>
 
@@ -280,6 +302,10 @@ const totalCBIBEl = document.getElementById('totalCBIB');
 const toggleGroupBtn = document.getElementById('toggleGroupAnalysis');
 const groupAnalysisDiv = document.getElementById('groupAnalysis');
 const pieCtx = document.getElementById('pieCanvas').getContext('2d');
+
+document.getElementById('chartFilter').addEventListener('change', () => applyUpdate());
+document.getElementById('chartType').addEventListener('change', () => applyUpdate());
+
 
 const dataTableHead = document.querySelector('#dataTable thead');
 const dataTableBody = document.querySelector('#dataTable tbody');
@@ -368,10 +394,28 @@ function initFiltersAndPanels(){
     fillPanel(key, Array.from(sets[key]).sort());
     attachFilterEvents(key);
   }
-  document.addEventListener('click', (ev) => {
-    const inside = ev.target.closest('.filter');
-    if(!inside) document.querySelectorAll('.filter.open').forEach(f => f.classList.remove('open'));
+  // GANTI DENGAN INI — lebih andal untuk mendeteksi klik di dalam .filter
+document.addEventListener('click', (ev) => {
+  // dapatkan seluruh path event (cross-browser)
+  const path = ev.composedPath ? ev.composedPath() : (ev.path || (() => {
+    const p = [];
+    let el = ev.target;
+    while (el) { p.push(el); el = el.parentElement; }
+    return p;
+  })());
+
+  // apakah salah satu elemen di path termasuk elemen dengan class 'filter'?
+  const clickedInsideFilter = path.some(el => {
+    try { return el && el.classList && el.classList.contains && el.classList.contains('filter'); }
+    catch(e){ return false; }
   });
+
+  if(!clickedInsideFilter){
+    // klik terjadi di luar filter => tutup semua panel
+    document.querySelectorAll('.filter.open').forEach(f => f.classList.remove('open'));
+  }
+});
+
 
   btnReset.addEventListener('click', () => {
     selections = { kecamatan:[], desa:[], jenisUsaha:[], wadahBudidaya:[] };
@@ -381,7 +425,7 @@ function initFiltersAndPanels(){
     applyUpdate();
   });
 
-  btnExport.addEventListener('click', exportVisibleToCSV);
+  btnExport.addEventListener('click', exportVisibleToExcel);
 
   toggleGroupBtn.addEventListener('click', () => {
     if(groupAnalysisDiv.style.display === 'none' || !groupAnalysisDiv.style.display){
@@ -490,22 +534,29 @@ function updateSubText(key){
 }
 
 /* ---------- APPLY FILTER & UPDATE ---------- */
-function applyUpdate(){
+function applyUpdate() {
   let filtered = GLOBAL.rows.slice();
-  for(const key of Object.keys(selections)){
+
+  // Terapkan filter aktif
+  for (const key of Object.keys(selections)) {
     const sel = selections[key] || [];
-    if(sel.length) filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+    if (sel.length) {
+      filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+    }
   }
 
-  for(const key of Object.keys(filters)){
-    refreshPanelOptionsBasedOnFiltered(key, filtered);
+  // Kalau tidak ada filter, tampilkan semua data
+  if (filtered.length === 0 && Object.values(selections).every(arr => arr.length === 0)) {
+    filtered = GLOBAL.rows.slice();
   }
 
+  // Jangan refresh panel lain agar pilihan multi tetap stabil
   renderTable(filtered);
   computeStatsAndRender(filtered);
   buildPieAndRender(filtered);
   updateMarkers(filtered);
 }
+
 
 /* refresh panel lists to reflect filtered dataset */
 function refreshPanelOptionsBasedOnFiltered(key, filteredRows){
@@ -632,24 +683,53 @@ function computeStatsAndRender(rows){
 
 /* ---------- Pie chart ---------- */
 function buildPieAndRender(rows){
+  const groupBy = document.getElementById('chartFilter').value;
+  const chartType = document.getElementById('chartType').value;
+
   const agg = {};
   rows.forEach(r => {
-    const key = (r.c[COL.wadahBudidaya]?.v || 'Tidak diisi').toString();
-    agg[key] = (agg[key]||0) + 1;
+    const key = (r.c[COL[groupBy]]?.v || 'Tidak diisi').toString();
+    agg[key] = (agg[key] || 0) + 1;
   });
-  const pairs = Object.keys(agg).map(k=>({k,v:agg[k]})).sort((a,b)=>b.v-a.v);
-  const TOP=8;
+
+  const pairs = Object.keys(agg).map(k => ({k,v:agg[k]})).sort((a,b)=>b.v-a.v);
+  const TOP = 8;
   const top = pairs.slice(0,TOP), rest = pairs.slice(TOP);
   const labels = top.map(p=>p.k), values = top.map(p=>p.v);
   if(rest.length){ labels.push('Lainnya'); values.push(rest.reduce((s,p)=>s+p.v,0)); }
 
   if(pieChart) pieChart.destroy();
+
   pieChart = new Chart(pieCtx, {
-    type:'pie',
-    data: { labels, datasets: [{ data: values, backgroundColor: generateColors(labels.length) }] },
-    options: { responsive:true, plugins:{ legend:{position:'bottom'}, tooltip:{ callbacks:{ label(ctx){ const total = ctx.dataset.data.reduce((a,b)=>a+b,0); const val = ctx.parsed; const pct = total? ((val/total)*100).toFixed(1) : 0; return `${ctx.label}: ${val} (${pct}%)`; } } } } }
+    type: chartType,
+    data: { 
+      labels, 
+      datasets: [{ 
+        data: values, 
+        backgroundColor: generateColors(labels.length), 
+        borderWidth: 1 
+      }] 
+    },
+    options: { 
+      responsive: true,
+      plugins: { 
+        legend: { position: 'bottom' },
+        tooltip: { 
+          callbacks: { 
+            label(ctx){ 
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const val = ctx.parsed;
+              const pct = total? ((val/total)*100).toFixed(1) : 0;
+              return `${ctx.label}: ${val} (${pct}%)`;
+            } 
+          } 
+        } 
+      },
+      scales: chartType === 'bar' ? { y: { beginAtZero: true } } : {}
+    }
   });
 }
+
 
 function generateColors(n){
   const arr=[];
@@ -705,5 +785,24 @@ function exportVisibleToCSV(){
 function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 </script>
+<!-- Tambahkan sebelum </body> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
+<script>
+function exportVisibleToExcel(){
+  const trs = Array.from(document.querySelectorAll('#dataTable tbody tr'));
+  if(!trs.length){ alert('Tidak ada data untuk diekspor.'); return; }
+
+  const headers = Array.from(document.querySelectorAll('#dataTable thead th')).map(th => th.textContent);
+  const rows = trs.map(tr => Array.from(tr.children).map(td => td.textContent));
+
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
+
+  XLSX.writeFile(workbook, "export.xlsx");
+}
+</script>
+
 </body>
 </html>
+
