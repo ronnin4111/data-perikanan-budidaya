@@ -223,6 +223,7 @@
   </select>
 </div>
 
+
       <canvas id="pieCanvas"></canvas>
     </div>
 
@@ -245,6 +246,9 @@
         <div><strong>NIB (individu):</strong> <span id="totalNIB">0</span></div>
         <div><strong>CPIB (individu):</strong> <span id="totalCPIB">0</span></div>
         <div><strong>CBIB (individu):</strong> <span id="totalCBIB">0</span></div>
+        <div><strong>Jumlah Kolam:</strong> <span id="totalKolam">0</span></div>
+        <div><strong>Luas Lahan (m2):</strong> <span id="totalLahan">0</span></div>
+
       </div>
     </div>
   </div>
@@ -352,6 +356,8 @@ function detectColumns(){
   COL.kusukaKelompok = findIndexByKeywords(['kusuka kelompok','kusuka_kelompok','kusukakelompok']) ;
   COL.latitude = findIndexByKeywords(['latitude','lat']);
   COL.longitude = findIndexByKeywords(['longitude','lon','lng','long']);
+  COL.jumlahKolam = findIndexByKeywords(['jumlah kolam', 'jml kolam', 'kolam']);
+  COL.luasLahan = findIndexByKeywords(['luas lahan', 'luas (ha)', 'luas']);
   console.log('Detected columns', COL);
 }
 
@@ -637,6 +643,19 @@ function computeStatsAndRender(rows){
   totalCPIBEl.textContent = totalCPIBIndividuals;
   totalCBIBEl.textContent = totalCBIBIndividuals;
 
+    // 🔹 Hitung total kolam dan luas lahan
+  let totalKolam = 0;
+  let totalLahan = 0;
+  rows.forEach(r => {
+    const kolamVal = parseFloat(r.c[COL.jumlahKolam]?.v || 0);
+    const lahanVal = parseFloat(r.c[COL.luasLahan]?.v || 0);
+    if (!isNaN(kolamVal)) totalKolam += kolamVal;
+    if (!isNaN(lahanVal)) totalLahan += lahanVal;
+  });
+  document.getElementById('totalKolam').textContent = totalKolam.toLocaleString('id-ID');
+  document.getElementById('totalLahan').textContent = totalLahan.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+
+
   groupAnalysisDiv.innerHTML = '';
   if(totalGroups === 0){
     groupAnalysisDiv.innerHTML = '<div style="color:var(--muted)">Tidak ada kelompok di hasil filter.</div>';
@@ -805,4 +824,3 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
-
