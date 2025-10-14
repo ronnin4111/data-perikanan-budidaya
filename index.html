@@ -138,6 +138,13 @@
   text-align: center;
   margin-bottom: 8px;
 }
+    #pieCanvas {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 600px !important; /* Sesuaikan dengan kebutuhan */
+  max-height: 400px !important; /* Sesuaikan dengan kebutuhan */
+  margin: auto;
+}
 </style>
 <!-- Project external stylesheet to avoid inline styles -->
 <link rel="stylesheet" href="./style.css" />
@@ -747,8 +754,10 @@ function buildPieAndRender(rows){
 
   const chartOptions = {
     responsive: true,
+    indexAxis: chartType === 'bar' ? 'y' : undefined, // Membuat bar horizontal
     plugins: {
       legend: {
+        display: chartType === 'pie', // Sembunyikan legend untuk bar chart
         position: 'bottom',
         labels: {
           usePointStyle: true,
@@ -774,8 +783,9 @@ function buildPieAndRender(rows){
           label(ctx){
             const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
             const val = ctx.parsed;
-            const pct = total ? ((val/total)*100).toFixed(1) : 0;
-            return `${ctx.label}: ${val.toLocaleString('id-ID')} (${pct}%)`;
+            const actualVal = chartType === 'bar' ? ctx.parsed.x : ctx.parsed;
+            const pct = total ? ((actualVal/total)*100).toFixed(1) : 0;
+            return `${ctx.label}: ${actualVal.toLocaleString('id-ID')} (${pct}%)`;
           }
         }
       }
@@ -785,7 +795,7 @@ function buildPieAndRender(rows){
   // Konfigurasi khusus untuk tipe bar
   if (chartType === 'bar') {
     chartOptions.scales = {
-      y: {
+      x: {
         beginAtZero: true,
         grid: {
           display: true,
@@ -794,25 +804,58 @@ function buildPieAndRender(rows){
         },
         ticks: {
           font: {
-            size: 11
+            size: 11,
+            weight: 'bold'
           },
-          color: '#666'
+          color: '#000'
         }
       },
-      x: {
+      y: {
         grid: {
           display: false
         },
         ticks: {
           font: {
-            size: 11
+            size: 12,
+            weight: 'bold'
           },
-          color: '#666',
-          maxRotation: 45,
-          minRotation: 45
+          color: '#000'
         }
       }
     };
+
+    pieChart = new Chart(pieCtx, {
+      type: chartType,
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: '#1e67c8', // Warna biru terang yang konsisten
+          borderWidth: 0,
+          borderRadius: 4,
+          barPercentage: 0.6, // Membuat bar lebih tipis
+          categoryPercentage: 0.8,
+          minBarLength: 10
+        }]
+      },
+      options: chartOptions
+    });
+  } else {
+    // Konfigurasi untuk pie chart tetap sama seperti sebelumnya
+    pieChart = new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: generateColors(labels.length),
+          borderWidth: 1
+        }]
+      },
+      options: chartOptions
+    });
+  }
+}
 
     // Generate gradient colors untuk bar
     const ctx = pieCtx;
@@ -932,6 +975,7 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
+
 
 
 
