@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard Data Pelaku Usaha Perikanan — Clean Blue</title>
+
+<!-- Leaflet CSS/JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    :root{
+    --bg:#f4f8fc;
+    --card:#ffffff;
+    --muted:#5b6b78;
+    --accent:#1e67c8;
+    --accent-600:#0f4fa8;
+    --success:#1b8b4a;
+    --danger:#e03e3e;
+    --shadow: 0 8px 28px rgba(14,29,56,0.06);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:var(--bg);
+    color:#0b2340;
+    padding:18px;
+  }
+  header{ margin-bottom:12px; }
+  header h1{ margin:0; font-size:20px; letter-spacing:0.2px; }
+  header p{ margin:6px 0 0; color:var(--muted); font-size:13px; }
+
+  .card{
+    background:var(--card);
+    border-radius:10px;
+    padding:12px;
+    box-shadow:var(--shadow);
+    border:1px solid rgba(12,24,48,0.04);
+  }
+
+  /* Controls */
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; position:relative; z-index:10010; }
+  .filter{ position:relative; min-width:220px; z-index:10010; }
+  .filter .label{
+    background:#fff; border-radius:8px; padding:10px; cursor:pointer;
+    border:1px solid rgba(12,24,48,0.06); display:flex; justify-content:space-between; align-items:center;
+  }
+  .filter .label .title{ font-weight:600; font-size:13px; }
+  .filter .label .sub{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+  .filter .panel{
+    position:absolute; left:0; top:calc(100% + 8px); z-index:10020;
+    width:320px; max-height:340px; overflow:auto; display:none;
+    border-radius:8px; padding:8px; background:var(--card);
+    border:1px solid rgba(12,24,48,0.06); box-shadow:0 12px 28px rgba(12,24,48,0.08);
+  }
+  .filter.open .panel{ display:block; }
+  .panel .search{ margin-bottom:8px; }
+  .panel input[type=search]{ width:100%; padding:8px; border-radius:6px; border:1px solid #e6eef7; }
+  .option{ display:flex; gap:8px; align-items:center; padding:6px 6px; border-radius:6px; cursor:pointer; }
+  .option:hover{ background:#f5f9ff }
+
+  .actions{ margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .btn{ padding:8px 10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+  .btn.primary{ background:var(--accent); color:#fff }
+  .btn.ghost{ background:transparent; color:var(--accent); border:1px solid rgba(12,24,48,0.06) }
+  .btn.danger{ background:var(--danger); color:#fff }
+
+  /* Layout main */
+  .layout{ display:grid; grid-template-columns:520px 1fr; gap:16px; align-items:start; }
+  @media(max-width:980px){ .layout{ grid-template-columns:1fr } .filter .panel{ width:280px } }
+
+  /* Pie card */
+  #pieCard{ padding:12px; }
+  #pieCanvas {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 400px;
+  aspect-ratio: 1 / 1;
+  display: block;
+  margin: auto;
+}
+
+
+  /* Stats card */
+  .stats{ padding:12px; border-radius:10px; background:linear-gradient(180deg,#f0fbff,#ffffff); border:1px solid #dbeeff; }
+  .stats h3{ margin:0 0 8px 0; color:var(--accent-600) }
+  .stats .small{ font-size:13px; color:var(--muted); margin-bottom:8px }
+
+  .toggle-list{ background:transparent; border:none; color:var(--accent); cursor:pointer; font-weight:700; padding:6px 0 }
+
+  .group-analyses{ margin-top:10px; max-height:320px; overflow:auto; border-radius:8px; padding:6px; background:#fbfdff; border:1px solid #eef7ff }
+  .group-row{ display:flex; gap:12px; align-items:center; padding:8px; border-bottom:1px solid #eef6fb }
+  .group-row:last-child{ border-bottom:none }
+  .group-name{ min-width:180px; font-weight:700; color:#08344a }
+  .group-stats{ display:flex; gap:10px; align-items:center; color:#0b2b3a; font-size:13px }
+
+  .stat-pill{ background:#fff; border-radius:8px; padding:6px 8px; border:1px solid #e6f0fb; font-weight:600; color:#093b66 }
+
+  /* Map */
+  .map-card{ height:360px; padding:0; margin-bottom:12px; overflow:hidden; position:relative; z-index:1; }
+  #map{ width:100%; height:100%; z-index:1; }
+
+  /* ensure panels and filters appear on top of map tiles/UI */
+  .filter, .filter .panel, .controls, .panel, .panel * { z-index:10020 !important; position:relative; }
+
+  /* table */
+  .table-card{ margin-top:8px; padding:0; overflow:auto; max-height:520px; }
+  table{ border-collapse:collapse; min-width:1000px; width:100% }
+  th, td{ padding:8px 10px; border-bottom:1px solid #eef7fb; font-size:13px; text-align:left }
+  th{ background:#eaf6ff; position:sticky; top:0; color:#074b8a; font-weight:700 }
+
+  .info-line{ color:var(--muted); font-size:13px; margin-top:8px }
+
+</style>
+<!-- Project external stylesheet to avoid inline styles -->
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<header>
+  <h1>DASHBOARD DATA PELAKU USAHA PERIKANAN</h1>
+  <p>Filter interaktif — klik filter untuk membuka daftar. Statistik, peta, chart, dan tabel menyesuaikan hasil filter.</p>
+</header>
+
+<div class="card">
+  <div class="controls">
+    <div class="filter" id="fKec">
+      <div class="label" data-key="kecamatan">
+        <div>
+          <div class="title">Kecamatan</div>
+          <div class="sub" id="subKec">Semua</div>
+        </div>
+        <div>▾</div>
+      </div>
+      <div class="panel" data-key="kecamatan">
+        <div class="search"><input type="search" placeholder="Cari kecamatan..." data-filter-search></div>
+        <div class="list" role="list"></div>
+      </div>
+    </div>
+
+    <div class="filter" id="fDesa">
+      <div class="label" data-key="desa">
+        <div>
+          <div class="title">Desa</div>
+          <div class="sub" id="subDesa">Semua</div>
+        </div>
+        <div>▾</div>
+      </div>
+      <div class="panel" data-key="desa">
+        <div class="search"><input type="search" placeholder="Cari desa..." data-filter-search></div>
+        <div class="list" role="list"></div>
+      </div>
+    </div>
+
+    <div class="filter" id="fUsaha">
+      <div class="label" data-key="jenisUsaha">
+        <div>
+          <div class="title">Jenis Usaha</div>
+          <div class="sub" id="subUsaha">Semua</div>
+        </div>
+        <div>▾</div>
+      </div>
+      <div class="panel" data-key="jenisUsaha">
+        <div class="search"><input type="search" placeholder="Cari jenis usaha..." data-filter-search></div>
+        <div class="list" role="list"></div>
+      </div>
+    </div>
+
+    <div class="filter" id="fWadah">
+      <div class="label" data-key="wadahBudidaya">
+        <div>
+          <div class="title">Wadah Budidaya</div>
+          <div class="sub" id="subWadah">Semua</div>
+        </div>
+        <div>▾</div>
+      </div>
+      <div class="panel" data-key="wadahBudidaya">
+        <div class="search"><input type="search" placeholder="Cari wadah..." data-filter-search></div>
+        <div class="list" role="list"></div>
+      </div>
+    </div>
+
+    <div class="controls-actions">
+      <button id="btnReset" class="btn danger">🧹 Hapus Semua Filter</button>
+      <button id="btnExport" class="btn ghost">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- map -->
+<div class="map-card card" id="mapCard">
+  <div id="map"></div>
+</div>
+
+<div class="layout">
+  <div>
+    <div id="pieCard" class="card">
+      <canvas id="pieCanvas"></canvas>
+    </div>
+
+  <div class="card stats mt-12">
+      <h3>Statistik</h3>
+      <div class="small">Ringkasan dan analisis kelompok (klik untuk buka detail)</div>
+
+      <div id="statSummary" class="mt-8">
+        <div><strong>Total Kelompok:</strong> <span id="totalKelompok">0</span></div>
+        <div><strong>KUSUKA Kelompok:</strong> <span id="totalKusukaKelompok">0</span></div>
+        <button id="toggleGroupAnalysis" class="toggle-list">Lihat Analisis Per Kelompok ▼</button>
+      </div>
+
+      <div id="groupAnalysis" class="group-analyses hidden">
+        <!-- each group row will be appended here -->
+      </div>
+
+      <div class="mt-10">
+        <div><strong>KUSUKA (individu):</strong> <span id="totalKusuka">0</span></div>
+        <div><strong>NIB (individu):</strong> <span id="totalNIB">0</span></div>
+        <div><strong>CPIB (individu):</strong> <span id="totalCPIB">0</span></div>
+        <div><strong>CBIB (individu):</strong> <span id="totalCBIB">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card table-card">
+      <div class="table-header">Tabel Data (hasil filter)</div>
+      <div class="table-body">
+        <table id="dataTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="h-18"></div>
+
+<script>
+/* Final updated dashboard with z-index fix for filters over map
+   Uses Google Sheet (same ID as provided)
+*/
+const SHEET_JSON = "https://docs.google.com/spreadsheets/d/1_yosbE7jOpDPtNgWpQuuGA3IskjGVkqIfyyBioZ41mY/gviz/tq?tqx=out:json";
+
+let GLOBAL = { cols: [], rows: [] };
+let selections = { kecamatan:[], desa:[], jenisUsaha:[], wadahBudidaya:[] };
+let COL = {}; // detected indices
+let pieChart = null;
+let map, markersLayer, defaultLayer, greenLayer;
+
+/* DOM refs */
+const filters = {
+  kecamatan: document.getElementById('fKec'),
+  desa: document.getElementById('fDesa'),
+  jenisUsaha: document.getElementById('fUsaha'),
+  wadahBudidaya: document.getElementById('fWadah')
+};
+const subTexts = {
+  kecamatan: document.getElementById('subKec'),
+  desa: document.getElementById('subDesa'),
+  jenisUsaha: document.getElementById('subUsaha'),
+  wadahBudidaya: document.getElementById('subWadah')
+};
+const btnReset = document.getElementById('btnReset');
+const btnExport = document.getElementById('btnExport');
+
+const totalKelEl = document.getElementById('totalKelompok');
+const totalKusukaKelEl = document.getElementById('totalKusukaKelompok');
+const totalKusEl = document.getElementById('totalKusuka');
+const totalNIBEl = document.getElementById('totalNIB');
+const totalCPIBEl = document.getElementById('totalCPIB');
+const totalCBIBEl = document.getElementById('totalCBIB');
+
+const toggleGroupBtn = document.getElementById('toggleGroupAnalysis');
+const groupAnalysisDiv = document.getElementById('groupAnalysis');
+const pieCtx = document.getElementById('pieCanvas').getContext('2d');
+
+const dataTableHead = document.querySelector('#dataTable thead');
+const dataTableBody = document.querySelector('#dataTable tbody');
+
+/* init */
+fetch(SHEET_JSON)
+  .then(r => r.text())
+  .then(txt => {
+    const json = JSON.parse(txt.substr(47).slice(0, -2));
+    GLOBAL.cols = json.table.cols;
+    GLOBAL.rows = json.table.rows || [];
+    detectColumns();
+    initMap();
+    initFiltersAndPanels();
+    applyUpdate();
+  })
+  .catch(err => {
+    console.error('Gagal ambil data sheet', err);
+    alert('Gagal ambil data Google Sheet. Periksa koneksi atau akses sheet.');
+  });
+
+/* ---------- detect columns by label ---------- */
+function detectColumns(){
+  const map = {};
+  GLOBAL.cols.forEach((c,i)=> map[(c.label||'').toString().trim().toLowerCase()] = i );
+  function findIndexByKeywords(keywords){
+    keywords = Array.isArray(keywords)? keywords : [keywords];
+    for(const [lab,i] of Object.entries(map)){
+      for(const kw of keywords){
+        if(lab.includes(kw)) return i;
+      }
+    }
+    return -1;
+  }
+  COL.kecamatan = findIndexByKeywords(['kecamatan','kec']);
+  COL.desa = findIndexByKeywords(['desa','kelurahan']);
+  COL.jenisUsaha = findIndexByKeywords(['jenis usaha','jenis_usaha','jenisusaha']);
+  COL.wadahBudidaya = findIndexByKeywords(['wadah','wadah budidaya','wadah_budidaya']);
+  COL.kelompok = findIndexByKeywords(['kelompok','nama kelompok','nama_kelompok']);
+  COL.kusuka = findIndexByKeywords(['kusuka','kusuka_individu','kusuka_ind']);
+  COL.nib = findIndexByKeywords(['nib']);
+  COL.cpib = findIndexByKeywords(['cpib']);
+  COL.cbib = findIndexByKeywords(['cbib']);
+  COL.kusukaKelompok = findIndexByKeywords(['kusuka kelompok','kusuka_kelompok','kusukakelompok']) ;
+  COL.latitude = findIndexByKeywords(['latitude','lat']);
+  COL.longitude = findIndexByKeywords(['longitude','lon','lng','long']);
+  console.log('Detected columns', COL);
+}
+
+/* ---------- map ---------- */
+function initMap(){
+  map = L.map('map', { zoomControl:true }).setView([-0.1,109.3], 9);
+
+  // 🔹 Layer Google Satellite
+  const googleSat = L.tileLayer(
+    'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    { maxZoom: 20, attribution: '© Google Maps' }
+  );
+
+  // 🔹 Layer Google Hybrid (satelit + nama jalan)
+  const googleHybrid = L.tileLayer(
+    'https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',
+    { maxZoom: 20, attribution: '© Google Maps' }
+  );
+
+  // 🔹 Tambah ke map
+  googleHybrid.addTo(map);
+
+  // 🔹 Layer marker
+  markersLayer = L.layerGroup().addTo(map);
+
+  // 🔹 Tambahkan kontrol pilihan gaya peta
+  const baseMaps = {
+    "Google Satellite": googleSat,
+    "Google Hybrid": googleHybrid
+  };
+
+  L.control.layers(baseMaps).addTo(map);
+}
+
+
+/* ---------- Filters ---------- */
+function initFiltersAndPanels(){
+  const sets = getUniqueSets(GLOBAL.rows);
+  for(const key of Object.keys(filters)){
+    fillPanel(key, Array.from(sets[key]).sort());
+    attachFilterEvents(key);
+  }
+  document.addEventListener('click', (ev) => {
+    const inside = ev.target.closest('.filter');
+    if(!inside) document.querySelectorAll('.filter.open').forEach(f => f.classList.remove('open'));
+  });
+
+  btnReset.addEventListener('click', () => {
+    selections = { kecamatan:[], desa:[], jenisUsaha:[], wadahBudidaya:[] };
+    const s = getUniqueSets(GLOBAL.rows);
+    for(const k of Object.keys(filters)) fillPanel(k, Array.from(s[k]).sort());
+    for(const k of Object.keys(filters)) updateSubText(k);
+    applyUpdate();
+  });
+
+  btnExport.addEventListener('click', exportVisibleToCSV);
+
+  toggleGroupBtn.addEventListener('click', () => {
+    if(groupAnalysisDiv.style.display === 'none' || !groupAnalysisDiv.style.display){
+      groupAnalysisDiv.style.display = 'block';
+      toggleGroupBtn.textContent = 'Sembunyikan Analisis Per Kelompok ▲';
+    } else {
+      groupAnalysisDiv.style.display = 'none';
+      toggleGroupBtn.textContent = 'Lihat Analisis Per Kelompok ▼';
+    }
+  });
+}
+
+function getUniqueSets(rows){
+  const s = { kecamatan:new Set(), desa:new Set(), jenisUsaha:new Set(), wadahBudidaya:new Set() };
+  rows.forEach(r => {
+    s.kecamatan.add(r.c[COL.kecamatan]?.v || '');
+    s.desa.add(r.c[COL.desa]?.v || '');
+    s.jenisUsaha.add(r.c[COL.jenisUsaha]?.v || '');
+    s.wadahBudidaya.add(r.c[COL.wadahBudidaya]?.v || '');
+  });
+  return s;
+}
+
+function fillPanel(key, values){
+  const panel = filters[key].querySelector('.panel .list');
+  panel.innerHTML = '';
+  values.filter(v=>v && v.toString().trim().length).forEach(val=>{
+    const id = `${key}__${escapeHtml(val)}`;
+    const row = document.createElement('div');
+    row.className = 'option';
+    row.innerHTML = `<input type="checkbox" id="${id}" data-val="${escapeHtml(val)}"> <label for="${id}" style="user-select:none">${val}</label>`;
+    panel.appendChild(row);
+  });
+  updateSubText(key);
+}
+
+function attachFilterEvents(key){
+  const f = filters[key];
+  const label = f.querySelector('.label');
+  const panel = f.querySelector('.panel');
+  const list = panel.querySelector('.list');
+  const search = panel.querySelector('input[data-filter-search]');
+
+  label.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    document.querySelectorAll('.filter.open').forEach(el=>{ if(el!==f) el.classList.remove('open') });
+    f.classList.toggle('open');
+    if(f.classList.contains('open')){ refreshPanelOptionsFor(key); if(search) search.value=''; }
+  });
+
+  list.addEventListener('change', (ev) => {
+    const cb = ev.target;
+    if(cb && cb.matches('input[type=checkbox]')){
+      const val = cb.getAttribute('data-val') || '';
+      if(cb.checked){
+        if(!selections[key].includes(val)) selections[key].push(val);
+      } else {
+        selections[key] = selections[key].filter(x => x !== val);
+      }
+      updateSubText(key);
+      applyUpdate();
+    }
+  });
+
+  if(search){
+    search.addEventListener('input', () => {
+      const q = (search.value||'').toLowerCase();
+      panel.querySelectorAll('.option').forEach(opt=>{
+        const lbl = opt.textContent.toLowerCase();
+        opt.style.display = lbl.includes(q) ? '' : 'none';
+      });
+    });
+  }
+}
+
+function refreshPanelOptionsFor(key){
+  const otherKeys = Object.keys(selections).filter(k=>k!==key);
+  let candidate = GLOBAL.rows.slice();
+  otherKeys.forEach(k => {
+    const sel = selections[k] || [];
+    if(sel.length) candidate = candidate.filter(r => sel.includes(r.c[COL[k]]?.v || ''));
+  });
+  const set = new Set();
+  candidate.forEach(r => set.add(r.c[COL[key]]?.v || ''));
+  const panel = filters[key].querySelector('.panel .list');
+  const currChecked = new Set(selections[key] || []);
+  panel.innerHTML = '';
+  Array.from(set).filter(v=>v && v.toString().trim().length).sort().forEach(val=>{
+    const id = `${key}__${escapeHtml(val)}`;
+    const checked = currChecked.has(val) ? 'checked' : '';
+    const row = document.createElement('div');
+    row.className = 'option';
+    row.innerHTML = `<input type="checkbox" id="${id}" data-val="${escapeHtml(val)}" ${checked}> <label for="${id}" style="user-select:none">${val}</label>`;
+    panel.appendChild(row);
+  });
+  selections[key] = (selections[key]||[]).filter(v => set.has(v));
+  updateSubText(key);
+}
+
+function updateSubText(key){
+  const arr = selections[key] || [];
+  const el = subTexts[key];
+  if(!arr.length) el.textContent = 'Semua';
+  else if(arr.length===1) el.textContent = arr[0];
+  else el.textContent = `${arr.length} dipilih`;
+}
+
+/* ---------- APPLY FILTER & UPDATE ---------- */
+function applyUpdate(){
+  let filtered = GLOBAL.rows.slice();
+  for(const key of Object.keys(selections)){
+    const sel = selections[key] || [];
+    if(sel.length) filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+  }
+
+  for(const key of Object.keys(filters)){
+    refreshPanelOptionsBasedOnFiltered(key, filtered);
+  }
+
+  renderTable(filtered);
+  computeStatsAndRender(filtered);
+  buildPieAndRender(filtered);
+  updateMarkers(filtered);
+}
+
+/* refresh panel lists to reflect filtered dataset */
+function refreshPanelOptionsBasedOnFiltered(key, filteredRows){
+  const set = new Set();
+  filteredRows.forEach(r => set.add(r.c[COL[key]]?.v || ''));
+  const panel = filters[key].querySelector('.panel .list');
+  const prev = new Set(selections[key] || []);
+  panel.innerHTML = '';
+  Array.from(set).filter(v=>v && v.toString().trim().length).sort().forEach(val=>{
+    const id = `${key}__${escapeHtml(val)}`;
+    const checked = prev.has(val) ? 'checked' : '';
+    const row = document.createElement('div');
+    row.className = 'option';
+    row.innerHTML = `<input type="checkbox" id="${id}" data-val="${escapeHtml(val)}" ${checked}> <label for="${id}" style="user-select:none">${val}</label>`;
+    panel.appendChild(row);
+  });
+  selections[key] = (selections[key]||[]).filter(v => set.has(v));
+  updateSubText(key);
+}
+
+/* ---------- Render Table ---------- */
+function renderTable(rows){
+  dataTableHead.innerHTML = '';
+  dataTableBody.innerHTML = '';
+  if(!rows.length){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan=5; td.textContent='Tidak ada data.'; tr.appendChild(td); dataTableBody.appendChild(tr);
+    return;
+  }
+  const labels = GLOBAL.cols.map(c => c.label || '');
+  const trh = document.createElement('tr');
+  labels.forEach(l => { const th=document.createElement('th'); th.textContent=l; trh.appendChild(th); });
+  dataTableHead.appendChild(trh);
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    labels.forEach((_,i) => {
+      const td = document.createElement('td');
+      td.textContent = r.c[i]?.f || r.c[i]?.v || '';
+      tr.appendChild(td);
+    });
+    dataTableBody.appendChild(tr);
+  });
+}
+
+/* ---------- Compute Stats & Per-Group Analysis ---------- */
+function computeStatsAndRender(rows){
+  const groups = {};
+  rows.forEach(r=>{
+    const kel = (r.c[COL.kelompok]?.v || '').toString().trim();
+    const key = kel || '(Tanpa Kelompok)';
+    if(!groups[key]) groups[key] = { rows:[], kusuka:0, nib:0, cpib:0, cbib:0, kusukaKelompok:false };
+    groups[key].rows.push(r);
+
+    if(COL.kusuka >= 0 && r.c[COL.kusuka] && r.c[COL.kusuka].v !== '') groups[key].kusuka++;
+    if(COL.nib >= 0 && r.c[COL.nib] && r.c[COL.nib].v !== '') groups[key].nib++;
+    if(COL.cpib >= 0 && r.c[COL.cpib] && r.c[COL.cpib].v !== '') groups[key].cpib++;
+    if(COL.cbib >= 0 && r.c[COL.cbib] && r.c[COL.cbib].v !== '') groups[key].cbib++;
+    if(COL.kusukaKelompok >= 0 && r.c[COL.kusukaKelompok] && String(r.c[COL.kusukaKelompok].v).trim() !== '' && String(r.c[COL.kusukaKelompok].v).trim() !== 'X') groups[key].kusukaKelompok = true;
+  });
+
+  const groupNames = Object.keys(groups).sort((a,b)=>a.localeCompare(b,'id'));
+  const totalGroups = groupNames.length;
+  let totalKusIndividuals=0, totalNIBIndividuals=0, totalCPIBIndividuals=0, totalCBIBIndividuals=0, totalGroupsKusukaKel=0;
+  groupNames.forEach(name=>{
+    const g = groups[name];
+    totalKusIndividuals += g.kusuka;
+    totalNIBIndividuals += g.nib;
+    totalCPIBIndividuals += g.cpib;
+    totalCBIBIndividuals += g.cbib;
+    if(g.kusukaKelompok) totalGroupsKusukaKel++;
+  });
+
+  totalKelEl.textContent = totalGroups;
+  totalKusukaKelEl.textContent = totalGroupsKusukaKel;
+  totalKusEl.textContent = totalKusIndividuals;
+  totalNIBEl.textContent = totalNIBIndividuals;
+  totalCPIBEl.textContent = totalCPIBIndividuals;
+  totalCBIBEl.textContent = totalCBIBIndividuals;
+
+  groupAnalysisDiv.innerHTML = '';
+  if(totalGroups === 0){
+    groupAnalysisDiv.innerHTML = '<div style="color:var(--muted)">Tidak ada kelompok di hasil filter.</div>';
+    return;
+  }
+
+  let groupsWithKusuka = 0, groupsWithNIB = 0, groupsWithCPIB = 0, groupsWithCBIB = 0;
+  groupNames.forEach(name=>{
+    const g = groups[name];
+    if(g.kusuka > 0) groupsWithKusuka++;
+    if(g.nib > 0) groupsWithNIB++;
+    if(g.cpib > 0) groupsWithCPIB++;
+    if(g.cbib > 0) groupsWithCBIB++;
+    const row = document.createElement('div');
+    row.className = 'group-row';
+    row.innerHTML = `
+      <div class="group-name">${escapeHtml(name)}</div>
+      <div class="group-stats">
+        <div class="stat-pill">KUSUKA: ${g.kusuka}</div>
+        <div class="stat-pill">NIB: ${g.nib}</div>
+        <div class="stat-pill">CPIB: ${g.cpib}</div>
+        <div class="stat-pill">CBIB: ${g.cbib}</div>
+        <div style="min-width:120px; text-align:center; font-weight:700; color:${g.kusukaKelompok ? 'var(--success)' : 'var(--muted)'};">
+          ${g.kusukaKelompok ? '✅ KUSUKA Kelompok' : '❌ KUSUKA Kelompok'}
+        </div>
+      </div>`;
+    groupAnalysisDiv.appendChild(row);
+  });
+
+  const perc = x => totalGroups ? ((x/totalGroups)*100).toFixed(1) : '0.0';
+  const summaryDiv = document.createElement('div');
+  summaryDiv.style.marginTop = '8px';
+  summaryDiv.style.fontSize = '13px';
+  summaryDiv.style.color = '#07304b';
+  summaryDiv.innerHTML = `
+    <div style="margin-top:8px"><strong>Ringkasan kelompok yang memiliki dokumen (jumlah & persentase):</strong></div>
+    <div style="margin-top:6px">KUSUKA: ${groupsWithKusuka} dari ${totalGroups} kelompok (${perc(groupsWithKusuka)}%)</div>
+    <div>NIB: ${groupsWithNIB} dari ${totalGroups} kelompok (${perc(groupsWithNIB)}%)</div>
+    <div>CPIB: ${groupsWithCPIB} dari ${totalGroups} kelompok (${perc(groupsWithCPIB)}%)</div>
+    <div>CBIB: ${groupsWithCBIB} dari ${totalGroups} kelompok (${perc(groupsWithCBIB)}%)</div>
+  `;
+  groupAnalysisDiv.appendChild(summaryDiv);
+}
+
+/* ---------- Pie chart ---------- */
+function buildPieAndRender(rows){
+  const agg = {};
+  rows.forEach(r => {
+    const key = (r.c[COL.wadahBudidaya]?.v || 'Tidak diisi').toString();
+    agg[key] = (agg[key]||0) + 1;
+  });
+  const pairs = Object.keys(agg).map(k=>({k,v:agg[k]})).sort((a,b)=>b.v-a.v);
+  const TOP=8;
+  const top = pairs.slice(0,TOP), rest = pairs.slice(TOP);
+  const labels = top.map(p=>p.k), values = top.map(p=>p.v);
+  if(rest.length){ labels.push('Lainnya'); values.push(rest.reduce((s,p)=>s+p.v,0)); }
+
+  if(pieChart) pieChart.destroy();
+  pieChart = new Chart(pieCtx, {
+    type:'pie',
+    data: { labels, datasets: [{ data: values, backgroundColor: generateColors(labels.length) }] },
+    options: { responsive:true, plugins:{ legend:{position:'bottom'}, tooltip:{ callbacks:{ label(ctx){ const total = ctx.dataset.data.reduce((a,b)=>a+b,0); const val = ctx.parsed; const pct = total? ((val/total)*100).toFixed(1) : 0; return `${ctx.label}: ${val} (${pct}%)`; } } } } }
+  });
+}
+
+function generateColors(n){
+  const arr=[];
+  for(let i=0;i<n;i++){ const h=Math.round((i*360)/Math.max(n,1)); arr.push(`hsl(${h}deg 70% 60%)`); }
+  return arr;
+}
+
+/* ---------- Map markers update ---------- */
+function updateMarkers(rows){
+  markersLayer.clearLayers();
+  const coords = [];
+  rows.forEach(r=>{
+    let lat = COL.latitude>=0 ? parseFloat(r.c[COL.latitude]?.v) : NaN;
+    let lon = COL.longitude>=0 ? parseFloat(r.c[COL.longitude]?.v) : NaN;
+    if((isNaN(lat) || isNaN(lon))){
+      const nums = [];
+      (r.c||[]).forEach(cell => {
+        if(!cell) return;
+        const v = String(cell.v||'').trim();
+        if(v.match(/^-?\d+\.\d+$/)) nums.push(parseFloat(v));
+      });
+      if(nums.length >= 2){ lat = nums[0]; lon = nums[1]; }
+    }
+    if(!isNaN(lat) && !isNaN(lon)){
+      coords.push([lat, lon]);
+      const nama = r.c[COL.kelompok]?.v || r.c[1]?.v || 'Pelaku';
+      const desa = r.c[COL.desa]?.v || '';
+      const kec = r.c[COL.kecamatan]?.v || '';
+      const usaha = r.c[COL.jenisUsaha]?.v || '';
+      const popup = `<b>${escapeHtml(nama)}</b><br/>${escapeHtml(usaha)}<br/>${escapeHtml(desa)}, ${escapeHtml(kec)}`;
+      L.marker([lat,lon]).addTo(markersLayer).bindPopup(popup);
+    }
+  });
+  if(coords.length){
+    const bounds = L.latLngBounds(coords);
+    map.fitBounds(bounds.pad(0.2));
+  }
+}
+
+/* ---------- Export CSV ---------- */
+function exportVisibleToCSV(){
+  const trs = Array.from(document.querySelectorAll('#dataTable tbody tr'));
+  if(!trs.length){ alert('Tidak ada data untuk diekspor.'); return; }
+  const headers = Array.from(document.querySelectorAll('#dataTable thead th')).map(th=>th.textContent);
+  const rows = trs.map(tr => Array.from(tr.children).map(td => td.textContent));
+  const csv = [headers.join(','), ...rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'export.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ---------- Helpers ---------- */
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+</script>
+</body>
+</html>
