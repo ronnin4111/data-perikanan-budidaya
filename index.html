@@ -251,6 +251,7 @@
       <div class="small">Ringkasan dan analisis kelompok (klik untuk buka detail)</div>
 
       <div id="statSummary" class="mt-8">
+        <div><strong>Jumlah Pembudidaya:</strong> <span id="totalPembudidaya">0</span></div>
         <div><strong>Total Kelompok:</strong> <span id="totalKelompok">0</span></div>
         <div><strong>KUSUKA Kelompok:</strong> <span id="totalKusukaKelompok">0</span></div>
         <button id="toggleGroupAnalysis" class="toggle-list">Lihat Analisis Per Kelompok ▼</button>
@@ -629,6 +630,10 @@ function renderTable(rows){
 
 /* ---------- Compute Stats & Per-Group Analysis ---------- */
 function computeStatsAndRender(rows){
+  // Hitung total pembudidaya (jumlah baris data)
+  const totalPembudidaya = rows.length;
+  document.getElementById('totalPembudidaya').textContent = totalPembudidaya.toLocaleString('id-ID');
+
   const groups = {};
   rows.forEach(r=>{
     const kel = (r.c[COL.kelompok]?.v || '').toString().trim();
@@ -642,6 +647,8 @@ function computeStatsAndRender(rows){
     if(COL.cbib >= 0 && r.c[COL.cbib] && r.c[COL.cbib].v !== '') groups[key].cbib++;
     if(COL.kusukaKelompok >= 0 && r.c[COL.kusukaKelompok] && String(r.c[COL.kusukaKelompok].v).trim() !== '' && String(r.c[COL.kusukaKelompok].v).trim() !== 'X') groups[key].kusukaKelompok = true;
   });
+
+  // Sisa kode tetap sama...
 
   const groupNames = Object.keys(groups).sort((a,b)=>a.localeCompare(b,'id'));
   const totalGroups = groupNames.length;
@@ -843,6 +850,7 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
+
 
 
 
