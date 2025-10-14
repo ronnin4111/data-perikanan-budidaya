@@ -14,17 +14,11 @@
 
 <style>
 
-   .chart-container {
-  position: relative;
-  height: 400px;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-#pieCanvas {
-  width: 100% !important;
-  height: 100% !important;
+    .header-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 12px;
 }
 
 .logo {
@@ -144,7 +138,6 @@
   text-align: center;
   margin-bottom: 8px;
 }
-    
 </style>
 <!-- Project external stylesheet to avoid inline styles -->
 <link rel="stylesheet" href="./style.css" />
@@ -238,14 +231,20 @@
     <option value="desa">Desa</option>
   </select>
   <label for="chartType" class="ml-10">Tipe chart:</label>
+  <label for="chartType" class="ml-10">Tipe chart:</label>
   <select id="chartType">
     <option value="pie">Pie</option>
     <option value="bar">Bar</option>
   </select>
 </div>
-<div class="chart-container">
-  <canvas id="pieCanvas"></canvas>
+    <option value="pie">Pie</option>
+    <option value="bar">Bar</option>
+  </select>
 </div>
+
+
+      <canvas id="pieCanvas"></canvas>
+    </div>
 
   <div class="card stats mt-12">
       <h3>Statistik</h3>
@@ -746,155 +745,34 @@ function buildPieAndRender(rows){
 
   if(pieChart) pieChart.destroy();
 
-  if (chartType === 'bar') {
-    pieChart = new Chart(pieCtx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: '#1e67c8',
-          borderWidth: 0,
-          borderRadius: 4
-        }]
+  pieChart = new Chart(pieCtx, {
+    type: chartType,
+    data: { 
+      labels, 
+      datasets: [{ 
+        data: values, 
+        backgroundColor: generateColors(labels.length), 
+        borderWidth: 1 
+      }] 
+    },
+    options: { 
+      responsive: true,
+      plugins: { 
+        legend: { position: 'bottom' },
+        tooltip: { 
+          callbacks: { 
+            label(ctx){ 
+              const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              const val = ctx.parsed;
+              const pct = total? ((val/total)*100).toFixed(1) : 0;
+              return `${ctx.label}: ${val} (${pct}%)`;
+            } 
+          } 
+        } 
       },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            titleColor: '#333',
-            bodyColor: '#666',
-            borderColor: '#ddd',
-            borderWidth: 1,
-            callbacks: {
-              label: function(context) {
-                const value = context.raw;
-                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = ((value / total) * 100).toFixed(1);
-                return `${value.toLocaleString('id-ID')} (${percentage}%)`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: {
-              display: false
-            },
-            ticks: {
-              font: {
-                size: 12,
-                weight: 'bold'
-              },
-              color: '#000'
-            }
-          },
-          x: {
-            beginAtZero: true,
-            grid: {
-              color: 'rgba(0, 0, 0, 0.05)'
-            },
-            ticks: {
-              font: {
-                size: 11,
-                weight: 'bold'
-              },
-              color: '#000'
-            }
-          }
-        },
-        barThickness: 20,
-        maxBarThickness: 30,
-        barPercentage: 0.8,
-        categoryPercentage: 0.9
-      }
-    });
-  } else {
-    // Konfigurasi untuk pie chart tetap sama
-    pieChart = new Chart(pieCtx, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: generateColors(labels.length),
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              usePointStyle: true,
-              padding: 15
-            }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const value = context.raw;
-                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = ((value / total) * 100).toFixed(1);
-                return `${context.label}: ${value.toLocaleString('id-ID')} (${percentage}%)`;
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-}
-
-    // Generate gradient colors untuk bar
-    const ctx = pieCtx;
-    const gradients = labels.map((_, index) => {
-      const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-      const hue = Math.round((index * 360) / Math.max(labels.length, 1));
-      gradient.addColorStop(0, `hsla(${hue}, 85%, 50%, 0.9)`);
-      gradient.addColorStop(1, `hsla(${hue}, 85%, 65%, 0.9)`);
-      return gradient;
-    });
-
-    pieChart = new Chart(pieCtx, {
-      type: chartType,
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: chartType === 'bar' ? gradients : generateColors(labels.length),
-          borderWidth: chartType === 'bar' ? 0 : 1,
-          borderRadius: chartType === 'bar' ? 6 : 0,
-          maxBarThickness: 50,
-          minBarLength: 10,
-          borderSkipped: false
-        }]
-      },
-      options: chartOptions
-    });
-  } else {
-    // Konfigurasi untuk pie chart tetap sama seperti sebelumnya
-    pieChart = new Chart(pieCtx, {
-      type: 'pie',
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: generateColors(labels.length),
-          borderWidth: 1
-        }]
-      },
-      options: chartOptions
-    });
-  }
+      scales: chartType === 'bar' ? { y: { beginAtZero: true } } : {}
+    }
+  });
 }
 
 
@@ -972,11 +850,6 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
-
-
-
-
-
 
 
 
