@@ -311,27 +311,31 @@ const SHEET_JSON = "https://docs.google.com/spreadsheets/d/1WvFGRiuiJiGGdhLp1Eqt
 
 let GLOBAL = { cols: [], rows: [] };
 let selections = { 
-  kecamatan: [], 
-  desa: [], 
-  jenisUsaha: [], 
-  wadahBudidaya: [],
-  jenisIkan: [] // Tambahkan ini
+    kecamatan: [],
+    desa: [], 
+    jenisUsaha: [], 
+    wadahBudidaya: [],
+    jenisIkan: []
 };
+let COL = {};
+let pieChart = null;
+let map, markersLayer;
 
+// Definisikan filters setelah DOM loaded
 const filters = {
-  kecamatan: document.getElementById('fKec'),
-  desa: document.getElementById('fDesa'),
-  jenisUsaha: document.getElementById('fUsaha'),
-  wadahBudidaya: document.getElementById('fWadah'),
-  jenisIkan: document.getElementById('fIkan') // Tambahkan ini
+    kecamatan: document.getElementById('fKec'),
+    desa: document.getElementById('fDesa'),
+    jenisUsaha: document.getElementById('fUsaha'),
+    wadahBudidaya: document.getElementById('fWadah'),
+    jenisIkan: document.getElementById('fIkan')
 };
 
 const subTexts = {
-  kecamatan: document.getElementById('subKec'),
-  desa: document.getElementById('subDesa'),
-  jenisUsaha: document.getElementById('subUsaha'),
-  wadahBudidaya: document.getElementById('subWadah'),
-  jenisIkan: document.getElementById('subIkan') // Tambahkan ini
+    kecamatan: document.getElementById('subKec'),
+    desa: document.getElementById('subDesa'),
+    jenisUsaha: document.getElementById('subUsaha'),
+    wadahBudidaya: document.getElementById('subWadah'),
+    jenisIkan: document.getElementById('subIkan')
 };
     
 const btnReset = document.getElementById('btnReset');
@@ -376,37 +380,38 @@ fetch(SHEET_JSON)
 function detectColumns(){
   const map = {};
   GLOBAL.cols.forEach((c,i)=> map[(c.label||'').toString().trim().toLowerCase()] = i );
+  
   function findIndexByKeywords(keywords){
     keywords = Array.isArray(keywords)? keywords : [keywords];
     for(const [lab,i] of Object.entries(map)){
       for(const kw of keywords){
-        if(lab.includes(kw)) return i;
+        if(lab.includes(kw.toLowerCase())) return i;
       }
     }
     return -1;
   }
-  // Kolom yang sudah ada
-  COL.kecamatan = findIndexByKeywords(['kecamatan','kec']);
-  COL.desa = findIndexByKeywords(['desa','kelurahan']);
-  COL.jenisUsaha = findIndexByKeywords(['jenis usaha','jenis_usaha','jenisusaha']);
-  COL.wadahBudidaya = findIndexByKeywords(['wadah','wadah budidaya','wadah_budidaya']);
-  COL.kelompok = findIndexByKeywords(['kelompok','nama kelompok','nama_kelompok']);
-  COL.kusuka = findIndexByKeywords(['kusuka','kusuka_individu','kusuka_ind']);
-  COL.nib = findIndexByKeywords(['nib']);
-  COL.cpib = findIndexByKeywords(['cpib']);
-  COL.cbib = findIndexByKeywords(['cbib']);
-  COL.kusukaKelompok = findIndexByKeywords(['kusuka kelompok','kusuka_kelompok','kusukakelompok']);
-  COL.latitude = findIndexByKeywords(['latitude','lat']);
-  COL.longitude = findIndexByKeywords(['longitude','lon','lng','long']);
-  COL.jumlahKolam = findIndexByKeywords(['jumlah kolam', 'jml kolam', 'kolam']);
-  COL.luasLahan = findIndexByKeywords(['luas lahan', 'luas (ha)', 'luas']);
-  
-  // Tambahan kolom baru
-  COL.ikanUtama = findIndexByKeywords(['jenis ikan utama', 'ikan utama']);
-  COL.ikanTambahan1 = findIndexByKeywords(['jenis ikan tambahan 1', 'ikan tambahan 1']);
-  COL.ikanTambahan2 = findIndexByKeywords(['jenis ikan tambahan 2', 'ikan tambahan 2']);
-  
-  console.log('Detected columns', COL);
+
+  COL = {
+    kecamatan: findIndexByKeywords(['kecamatan','kec']),
+    desa: findIndexByKeywords(['desa','kelurahan']),
+    jenisUsaha: findIndexByKeywords(['jenis usaha','jenis_usaha','jenisusaha']),
+    wadahBudidaya: findIndexByKeywords(['wadah','wadah budidaya','wadah_budidaya']),
+    kelompok: findIndexByKeywords(['kelompok','nama kelompok','nama_kelompok']),
+    kusuka: findIndexByKeywords(['kusuka','kusuka_individu','kusuka_ind']),
+    nib: findIndexByKeywords(['nib']),
+    cpib: findIndexByKeywords(['cpib']),
+    cbib: findIndexByKeywords(['cbib']),
+    kusukaKelompok: findIndexByKeywords(['kusuka kelompok','kusuka_kelompok']),
+    latitude: findIndexByKeywords(['latitude','lat']),
+    longitude: findIndexByKeywords(['longitude','lon','lng']),
+    jumlahKolam: findIndexByKeywords(['jumlah kolam','jml kolam']),
+    luasLahan: findIndexByKeywords(['luas lahan','luas']),
+    ikanUtama: findIndexByKeywords(['jenis ikan utama','ikan utama']),
+    ikanTambahan1: findIndexByKeywords(['jenis ikan tambahan 1','ikan tambahan 1']),
+    ikanTambahan2: findIndexByKeywords(['jenis ikan tambahan 2','ikan tambahan 2'])
+  };
+
+  console.log('Detected columns:', COL);
 }
 
 /* ---------- map ---------- */
@@ -448,6 +453,37 @@ function initFiltersAndPanels(){
     fillPanel(key, Array.from(sets[key]).sort());
     attachFilterEvents(key);
   }
+    document.addEventListener('DOMContentLoaded', function() {
+    fetch(SHEET_JSON)
+        .then(r => r.text())
+        .then(txt => {
+            const json = JSON.parse(txt.substr(47).slice(0, -2));
+            GLOBAL.cols = json.table.cols;
+            GLOBAL.rows = json.table.rows || [];
+            detectColumns();
+            initMap();
+            initFiltersAndPanels();
+            applyUpdate();
+            
+            // Set current time
+            updateTime();
+            setInterval(updateTime, 1000);
+        })
+        .catch(err => {
+            console.error('Gagal ambil data sheet', err);
+            alert('Gagal ambil data Google Sheet. Periksa koneksi atau akses sheet.');
+        });
+});
+    function updateTime() {
+    const now = new Date();
+    const formatted = now.getUTCFullYear() + '-' + 
+                     String(now.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+                     String(now.getUTCDate()).padStart(2, '0') + ' ' + 
+                     String(now.getUTCHours()).padStart(2, '0') + ':' + 
+                     String(now.getUTCMinutes()).padStart(2, '0') + ':' + 
+                     String(now.getUTCSeconds()).padStart(2, '0');
+    document.getElementById('current-time').textContent = formatted + ' UTC';
+}
   // GANTI DENGAN INI — lebih andal untuk mendeteksi klik di dalam .filter
 document.addEventListener('click', (ev) => {
   // dapatkan seluruh path event (cross-browser)
@@ -493,30 +529,29 @@ document.addEventListener('click', (ev) => {
 }
 
 function getUniqueSets(rows){
-  const s = { 
-    kecamatan: new Set(), 
-    desa: new Set(), 
-    jenisUsaha: new Set(), 
+  const s = {
+    kecamatan: new Set(),
+    desa: new Set(),
+    jenisUsaha: new Set(),
     wadahBudidaya: new Set(),
-    jenisIkan: new Set() 
+    jenisIkan: new Set()
   };
-  
+
   rows.forEach(r => {
-    s.kecamatan.add(r.c[COL.kecamatan]?.v || '');
-    s.desa.add(r.c[COL.desa]?.v || '');
-    s.jenisUsaha.add(r.c[COL.jenisUsaha]?.v || '');
-    s.wadahBudidaya.add(r.c[COL.wadahBudidaya]?.v || '');
+    if(r.c[COL.kecamatan]?.v) s.kecamatan.add(r.c[COL.kecamatan].v);
+    if(r.c[COL.desa]?.v) s.desa.add(r.c[COL.desa].v);
+    if(r.c[COL.jenisUsaha]?.v) s.jenisUsaha.add(r.c[COL.jenisUsaha].v);
+    if(r.c[COL.wadahBudidaya]?.v) s.wadahBudidaya.add(r.c[COL.wadahBudidaya].v);
     
     // Tambahkan jenis ikan dari ketiga kolom
-    const ikanUtama = r.c[COL.ikanUtama]?.v || '';
-    const ikanTambahan1 = r.c[COL.ikanTambahan1]?.v || '';
-    const ikanTambahan2 = r.c[COL.ikanTambahan2]?.v || '';
-    
-    if(ikanUtama) s.jenisIkan.add(ikanUtama);
-    if(ikanTambahan1) s.jenisIkan.add(ikanTambahan1);
-    if(ikanTambahan2) s.jenisIkan.add(ikanTambahan2);
+    [COL.ikanUtama, COL.ikanTambahan1, COL.ikanTambahan2].forEach(colIndex => {
+      if(colIndex >= 0 && r.c[colIndex]?.v) {
+        const ikanValue = r.c[colIndex].v.toString().trim();
+        if(ikanValue) s.jenisIkan.add(ikanValue);
+      }
+    });
   });
-  
+
   return s;
 }
 
@@ -608,32 +643,28 @@ function updateSubText(key){
 function applyUpdate() {
   let filtered = GLOBAL.rows.slice();
 
-  // Terapkan filter aktif
-  for (const key of Object.keys(selections)) {
-    const sel = selections[key] || [];
-    if (sel.length) {
+  Object.entries(selections).forEach(([key, selectedValues]) => {
+    if (selectedValues && selectedValues.length > 0) {
       if (key === 'jenisIkan') {
-        // Filter khusus untuk jenis ikan (cek di 3 kolom)
-        filtered = filtered.filter(r => {
-          const ikanUtama = r.c[COL.ikanUtama]?.v || '';
-          const ikanTambahan1 = r.c[COL.ikanTambahan1]?.v || '';
-          const ikanTambahan2 = r.c[COL.ikanTambahan2]?.v || '';
-          return sel.some(selected => 
-            selected === ikanUtama || 
-            selected === ikanTambahan1 || 
-            selected === ikanTambahan2
+        filtered = filtered.filter(row => {
+          const ikanValues = [
+            row.c[COL.ikanUtama]?.v,
+            row.c[COL.ikanTambahan1]?.v,
+            row.c[COL.ikanTambahan2]?.v
+          ].map(v => v?.toString().trim() || '');
+          
+          return selectedValues.some(selected => 
+            ikanValues.includes(selected)
           );
         });
       } else {
-        filtered = filtered.filter(r => sel.includes(r.c[COL[key]]?.v || ''));
+        filtered = filtered.filter(row => {
+          const value = row.c[COL[key]]?.v?.toString() || '';
+          return selectedValues.includes(value);
+        });
       }
     }
-  }
-
-  // Kalau tidak ada filter, tampilkan semua data
-  if (filtered.length === 0 && Object.values(selections).every(arr => arr.length === 0)) {
-    filtered = GLOBAL.rows.slice();
-  }
+  });
 
   renderTable(filtered);
   computeStatsAndRender(filtered);
@@ -922,6 +953,7 @@ function exportVisibleToExcel(){
 
 </body>
 </html>
+
 
 
 
